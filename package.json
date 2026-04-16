@@ -1,6 +1,6 @@
 {
   "name": "hexo-relative-post-images",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Copy local relative images referenced in Hexo posts into each post's public output directory.",
   "keywords": [
     "hexo",
@@ -14,7 +14,7 @@
   "files": [
     "index.js",
     "README.md",
-    "README.en.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
