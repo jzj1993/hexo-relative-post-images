@@ -25,6 +25,7 @@ In those cases, Markdown can still render image links, but Hexo may not copy the
 - Follows Hexo's final post output path, including `url` or `permalink` if set
 - Skips unchanged files with a lightweight `size + mtime` check
 - Uses `Copied:` logs so it stays separate from Hexo's native `Generated:` logs
+- Designed to be cross-platform for macOS, Linux, and Windows through Node.js `fs` and `path` APIs
 
 ## Install
 
@@ -71,7 +72,7 @@ relative_post_images: false
 ```text
 INFO  [relative-post-images] Start copying relative post images
 INFO  [relative-post-images] Copied: markdown-test/img/markdown-test-image.jpg
-INFO  [relative-post-images] Finished: 1 copied, 3 skipped in 2 ms
+INFO  [relative-post-images] Finished: 1 copied, 3 skipped, 0 missing, 0 failed, 0 outside_source, 0 outside_public in 2 ms
 ```
 
 ## Limitations
@@ -79,6 +80,9 @@ INFO  [relative-post-images] Finished: 1 copied, 3 skipped in 2 ms
 - It complements `post_asset_folder`; it does not replace it
 - It currently handles images only
 - Incremental checks are based on `size + mtime`
+- Image files must stay inside Hexo's `source` directory
+- Do not reference files outside `source`, or files that would resolve outside the final `public` post directory
+- If a source image is missing, or the resolved path is outside `source` / `public`, the plugin will log a warning and skip that file
 
 ## Full Example
 
@@ -118,6 +122,28 @@ public/custom/demo/index.html
 public/custom/demo/cover.jpg
 public/custom/demo/images/basic-demo.webp
 ```
+
+## Development
+
+### Environment
+
+- Node.js `>=18`
+- Hexo `>=6`
+- npm
+
+### Local development
+
+- Update code and README together
+- Run `npm run lint`
+- Test the plugin in a real Hexo project with `hexo generate`
+
+### Release flow
+
+1. Update `package.json` version
+2. Commit and push to GitHub
+3. Create and push a matching Git tag such as `v0.1.0`
+4. Publish the same version to npm
+5. Verify that the GitHub tag, npm version, and README all match
 
 ## License
 

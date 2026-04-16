@@ -105,6 +105,10 @@ hexo.extend.filter.register('after_generate', async function() {
   const startTime = Date.now();
   let copiedCount = 0;
   let skippedCount = 0;
+  let failedCount = 0;
+  let outsideSourceCount = 0;
+  let outsidePublicCount = 0;
+  let missingCount = 0;
 
   this.log.info('%s Start copying relative post images', logPrefix);
 
@@ -118,6 +122,7 @@ hexo.extend.filter.register('after_generate', async function() {
     try {
       markdown = await fs.readFile(sourcePath, 'utf8');
     } catch {
+      failedCount += 1;
       this.log.warn('%s Failed to read post source: %s', logPrefix, post.source);
       continue;
     }
@@ -129,11 +134,13 @@ hexo.extend.filter.register('after_generate', async function() {
       const resolvedTarget = path.resolve(outputDir, imageRef);
 
       if (!isInside(sourceDir, resolvedSource)) {
+        outsideSourceCount += 1;
         this.log.warn('%s Skipped image outside source dir: %s (from %s)', logPrefix, imageRef, post.source);
         continue;
       }
 
       if (!isInside(publicDir, resolvedTarget)) {
+        outsidePublicCount += 1;
         this.log.warn('%s Skipped image outside public dir: %s (from %s)', logPrefix, imageRef, post.source);
         continue;
       }
@@ -142,6 +149,7 @@ hexo.extend.filter.register('after_generate', async function() {
       try {
         sourceStat = await fs.stat(resolvedSource);
       } catch {
+        missingCount += 1;
         this.log.warn('%s Missing image: %s (from %s)', logPrefix, imageRef, post.source);
         continue;
       }
@@ -165,10 +173,14 @@ hexo.extend.filter.register('after_generate', async function() {
   }
 
   this.log.info(
-    '%s Finished: %d copied, %d skipped in %d ms',
+    '%s Finished: %d copied, %d skipped, %d missing, %d failed, %d outside_source, %d outside_public in %d ms',
     logPrefix,
     copiedCount,
     skippedCount,
+    missingCount,
+    failedCount,
+    outsideSourceCount,
+    outsidePublicCount,
     Date.now() - startTime
   );
 });
