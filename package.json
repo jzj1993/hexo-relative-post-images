@@ -1,0 +1,44 @@
+{
+  "name": "hexo-relative-post-images",
+  "version": "0.1.0",
+  "description": "Copy local relative images referenced in Hexo posts into each post's public output directory.",
+  "keywords": [
+    "hexo",
+    "hexo-plugin",
+    "hexo-extension",
+    "markdown",
+    "images",
+    "post-assets"
+  ],
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "lint": "node --check index.js",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "hexo": ">=6.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "author": "Xiaoming Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jzj1993/hexo-relative-post-images.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jzj1993/hexo-relative-post-images/issues"
+  },
+  "homepage": "https://github.com/jzj1993/hexo-relative-post-images#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
