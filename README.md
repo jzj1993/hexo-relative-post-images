@@ -140,11 +140,44 @@ public/custom/demo/images/basic-demo.webp
 
 ### Release flow
 
-1. Update `package.json` version
-2. Commit and push to GitHub
-3. Create and push a matching Git tag such as `v0.1.0`
-4. Publish the same version to npm
-5. Verify that the GitHub tag, npm version, and README all match
+```bash
+# 1. Enter the repository
+cd /path/to/hexo-relative-post-images
+
+# 2. Update package.json to the target version
+# Example: change 0.1.3 to 0.1.4 before continuing
+
+# 3. Run release checks
+npm test
+npm run lint
+npm run pack:dry-run
+
+# 4. Review the pending release changes
+git status --short --branch
+git diff
+
+# 5. Commit the release
+git add .
+git commit -m "Release v0.1.4"
+
+# 6. Push the release commit to GitHub
+git push origin main
+
+# 7. Create and push the matching Git tag
+git tag -a v0.1.4 -m "Release v0.1.4"
+git push origin v0.1.4
+
+# 8. Log in to npm
+npm login
+
+# 9. Publish the same version to npm
+npm publish --access public
+
+# 10. Verify npm and GitHub state
+npm view hexo-relative-post-images version dist-tags.latest --json
+git ls-remote origin refs/heads/main
+git ls-remote --tags origin v0.1.4 v0.1.4^{}
+```
 
 ## License
 

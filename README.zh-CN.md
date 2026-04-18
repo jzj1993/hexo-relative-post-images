@@ -140,11 +140,44 @@ public/custom/demo/images/basic-demo.webp
 
 ### 发布流程
 
-1. 修改 `package.json` 里的版本号
-2. 提交并推送到 GitHub
-3. 创建并推送对应的 Git tag，比如 `v0.1.0`
-4. 再把同一个版本发布到 npm
-5. 最后检查 GitHub tag、npm 版本和 README 是否对应
+```bash
+# 1. 进入仓库目录
+cd /path/to/hexo-relative-post-images
+
+# 2. 把 package.json 改成目标版本
+# 例如先把 0.1.3 改成 0.1.4，再继续下面步骤
+
+# 3. 执行发布前检查
+npm test
+npm run lint
+npm run pack:dry-run
+
+# 4. 检查这次发布包含的改动
+git status --short --branch
+git diff
+
+# 5. 提交发布版本
+git add .
+git commit -m "Release v0.1.4"
+
+# 6. 推送发布提交到 GitHub
+git push origin main
+
+# 7. 创建并推送对应的 Git tag
+git tag -a v0.1.4 -m "Release v0.1.4"
+git push origin v0.1.4
+
+# 8. 登录 npm
+npm login
+
+# 9. 把同一个版本发布到 npm
+npm publish --access public
+
+# 10. 最后核对 npm 和 GitHub 状态
+npm view hexo-relative-post-images version dist-tags.latest --json
+git ls-remote origin refs/heads/main
+git ls-remote --tags origin v0.1.4 v0.1.4^{}
+```
 
 ## License
 
