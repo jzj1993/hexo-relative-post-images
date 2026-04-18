@@ -21,6 +21,7 @@ In those cases, Markdown can still render image links, but Hexo may not copy the
 
 - Supports Markdown images like `![alt](cover.jpg)` and `![alt](./images/demo.webp)`
 - Supports HTML images like `<img src="./images/demo.webp">`
+- Supports site-root absolute paths like `![alt](/images/demo.webp)` and `<img src="/images/demo.webp">`
 - Ignores image references inside fenced code blocks and inline code
 - Supports same-directory, child-directory, and parent-directory relative paths
 - Follows Hexo's final post output path, including `url` or `permalink` if set
@@ -82,6 +83,7 @@ INFO  [relative-post-images] Finished: 1 copied, 3 skipped, 0 missing, 0 failed,
 - It currently handles images only
 - Incremental checks are based on `size + mtime`
 - Image files must stay inside Hexo's `source` directory
+- OS filesystem absolute paths such as `C:\demo.png` or `\\server\share\demo.png` are not supported
 - Do not reference files outside `source`, or files that would resolve outside the final `public` post directory
 - If a source image is missing, or the resolved path is outside `source` / `public`, the plugin will log a warning and skip that file
 

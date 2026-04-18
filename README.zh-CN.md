@@ -21,6 +21,7 @@ source/_posts/basic/images/basic-demo.webp
 
 - 支持 Markdown 图片：`![alt](cover.jpg)`、`![alt](./images/demo.webp)`
 - 支持 HTML 图片：`<img src="./images/demo.webp">`
+- 支持站点根路径形式的绝对路径，例如 `![alt](/images/demo.webp)` 和 `<img src="/images/demo.webp">`
 - 会忽略代码块 (fenced code block) 和内联代码里的图片引用
 - 支持同级、子目录、上级目录的相对路径
 - 跟随 Hexo 最终文章输出路径，设置了 `url` 或 `permalink` 也能正常工作
@@ -82,6 +83,7 @@ INFO  [relative-post-images] Finished: 1 copied, 3 skipped, 0 missing, 0 failed,
 - 当前只处理图片
 - 增量判断基于 `size + mtime`
 - 图片文件必须放在 Hexo 的 `source` 目录里面
+- 不支持操作系统文件绝对路径，例如 `C:\demo.png` 或 `\\server\share\demo.png`
 - 不要引用 `source` 外面的文件，也不要让路径解析后落到文章最终 `public` 目录外面
 - 如果源图片不存在，或者解析后的路径超出 `source` / `public` 范围，插件会输出 warning 并跳过
 

@@ -69,13 +69,34 @@ function normalizeRef(rawRef) {
   if (!ref) return null;
   if (/^(?:[a-z]+:)?\/\//i.test(ref)) return null;
   if (/^(?:data|mailto|tel):/i.test(ref)) return null;
-  if (ref.startsWith('#') || ref.startsWith('/')) return null;
+  if (isWindowsAbsolutePath(ref)) return null;
+  if (ref.startsWith('#')) return null;
 
   try {
     return decodeURI(ref);
   } catch {
     return ref;
   }
+}
+
+function isWindowsAbsolutePath(ref) {
+  return /^[a-zA-Z]:[\\/]/.test(ref) || /^\\\\/.test(ref);
+}
+
+function resolveImagePaths(imageRef, sourcePath, sourceDir, outputDir, publicDir) {
+  if (imageRef.startsWith('/')) {
+    const sourceRelativeRef = `.${imageRef}`;
+
+    return {
+      resolvedSource: path.resolve(sourceDir, sourceRelativeRef),
+      resolvedTarget: path.resolve(publicDir, sourceRelativeRef)
+    };
+  }
+
+  return {
+    resolvedSource: path.resolve(path.dirname(sourcePath), imageRef),
+    resolvedTarget: path.resolve(outputDir, imageRef)
+  };
 }
 
 function extractImageRefs(markdown) {
@@ -166,8 +187,13 @@ function register(hexoInstance) {
       const imageRefs = extractImageRefs(markdown);
 
       for (const imageRef of imageRefs) {
-        const resolvedSource = path.resolve(path.dirname(sourcePath), imageRef);
-        const resolvedTarget = path.resolve(outputDir, imageRef);
+        const { resolvedSource, resolvedTarget } = resolveImagePaths(
+          imageRef,
+          sourcePath,
+          sourceDir,
+          outputDir,
+          publicDir
+        );
 
         if (!isInside(sourceDir, resolvedSource)) {
           outsideSourceCount += 1;
@@ -228,8 +254,11 @@ if (typeof hexo !== 'undefined' && hexo && hexo.extend && hexo.extend.filter) {
 
 module.exports = {
   extractImageRefs,
+  isWindowsAbsolutePath,
+  isInside,
   normalizeRef,
   register,
+  resolveImagePaths,
   stripCodeContexts,
   stripFrontMatter,
   stripInlineCode
