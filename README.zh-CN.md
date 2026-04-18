@@ -21,6 +21,7 @@ source/_posts/basic/images/basic-demo.webp
 
 - 支持 Markdown 图片：`![alt](cover.jpg)`、`![alt](./images/demo.webp)`
 - 支持 HTML 图片：`<img src="./images/demo.webp">`
+- 会忽略代码块 (fenced code block) 和内联代码里的图片引用
 - 支持同级、子目录、上级目录的相对路径
 - 跟随 Hexo 最终文章输出路径，设置了 `url` 或 `permalink` 也能正常工作
 - 通过 `size + mtime` 做轻量增量跳过

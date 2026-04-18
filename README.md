@@ -21,6 +21,7 @@ In those cases, Markdown can still render image links, but Hexo may not copy the
 
 - Supports Markdown images like `![alt](cover.jpg)` and `![alt](./images/demo.webp)`
 - Supports HTML images like `<img src="./images/demo.webp">`
+- Ignores image references inside fenced code blocks and inline code
 - Supports same-directory, child-directory, and parent-directory relative paths
 - Follows Hexo's final post output path, including `url` or `permalink` if set
 - Skips unchanged files with a lightweight `size + mtime` check

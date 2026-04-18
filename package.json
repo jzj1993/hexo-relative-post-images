@@ -1,6 +1,6 @@
 {
   "name": "hexo-relative-post-images",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Copy local relative images referenced in Hexo posts into each post's public output directory.",
   "keywords": [
     "hexo",
@@ -10,15 +10,16 @@
     "images",
     "post-assets"
   ],
-  "main": "index.js",
+  "main": "src/index.js",
   "files": [
-    "index.js",
+    "src/index.js",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
   ],
   "scripts": {
-    "lint": "node --check index.js",
+    "lint": "node --check src/index.js",
+    "test": "node --test",
     "pack:dry-run": "npm pack --dry-run"
   },
   "peerDependencies": {
