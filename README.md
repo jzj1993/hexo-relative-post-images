@@ -2,7 +2,9 @@
 
 [中文](./README.zh-CN.md)
 
-A Hexo plugin for posts that use local images with relative paths.
+A Hexo plugin for posts that reference local images with relative paths.
+
+The plugin does not modify Markdown rendering or rewrite rendered HTML. After `hexo generate`, it scans post source files and copies relative-path image files into each post's final output directory.
 
 Hexo's default `post_asset_folder` works well when a post and its assets follow the standard one-to-one layout. But many projects use looser structures, for example:
 
@@ -15,21 +17,22 @@ source/_posts/basic/cover.jpg
 source/_posts/basic/images/basic-demo.webp
 ```
 
-In those cases, Markdown can still render image links, but Hexo may not copy the actual files into `public`. This plugin fills that gap by copying local relative images into the final post output directory after `hexo generate`.
+In those cases, Markdown can still render image links, but Hexo may not copy the actual files into `public`. The plugin fills that gap by copying local relative images into the final post output directory after `hexo generate`.
 
-## Features
+## For Users
 
-- Supports Markdown images like `![alt](cover.jpg)` and `![alt](./images/demo.webp)`
-- Supports HTML images like `<img src="./images/demo.webp">`
-- Supports site-root absolute paths like `![alt](/images/demo.webp)` and `<img src="/images/demo.webp">`
-- Ignores image references inside fenced code blocks and inline code
+### What It Supports
+
 - Supports same-directory, child-directory, and parent-directory relative paths
+- Supports Markdown images like `![alt](cover.jpg)`, `![alt](./images/demo.webp)`, and `![alt](<cover image.png>)`
+- Supports HTML images like `<img src="./images/demo.webp">` and `<img src='./images/demo.webp'>`
 - Follows Hexo's final post output path, including `url` or `permalink` if set
+- Supports common special-character filenames such as spaces, Unicode, parentheses, `#`, and `?` when written with valid Markdown / URL encoding
+- Image references inside front matter, fenced code blocks, and inline code are ignored
 - Skips unchanged files with a lightweight `size + mtime` check
-- Uses `Copied:` logs so it stays separate from Hexo's native `Generated:` logs
 - Designed to be cross-platform for macOS, Linux, and Windows through Node.js `fs` and `path` APIs
 
-## Install
+### Install
 
 ```bash
 npm install hexo-relative-post-images --save
@@ -41,7 +44,7 @@ or
 yarn add hexo-relative-post-images
 ```
 
-## Usage
+### Quick Start
 
 Run:
 
@@ -69,25 +72,13 @@ Disable it completely:
 relative_post_images: false
 ```
 
-## Log Example
+### Renderer Compatibility
 
-```text
-INFO  [relative-post-images] Start copying relative post images
-INFO  [relative-post-images] Copied: markdown-test/img/markdown-test-image.jpg
-INFO  [relative-post-images] Finished: 1 copied, 3 skipped, 0 missing, 0 failed, 0 outside_source, 0 outside_public in 2 ms
-```
+- `markdown-it`: works with `relative_link: true` or `false`
+- `marked`: use either `relative_link: true` or `marked.prependRoot: false`
+- `marked.postAsset: true` is intentionally unsupported
 
-## Limitations
-
-- It complements `post_asset_folder`; it does not replace it
-- It currently handles images only
-- Incremental checks are based on `size + mtime`
-- Image files must stay inside Hexo's `source` directory
-- OS filesystem absolute paths such as `C:\demo.png` or `\\server\share\demo.png` are not supported
-- Do not reference files outside `source`, or files that would resolve outside the final `public` post directory
-- If a source image is missing, or the resolved path is outside `source` / `public`, the plugin will log a warning and skip that file
-
-## Full Example
+### Example
 
 Source files:
 
@@ -126,7 +117,30 @@ public/custom/demo/cover.jpg
 public/custom/demo/images/basic-demo.webp
 ```
 
-## Development
+### Supported Assumptions
+
+- It handles images only
+- Image files must stay inside Hexo's `source` directory
+- Supports real filesystem-relative layouts such as `source/_posts/foo/index.md` next to `source/_posts/foo/cover.jpg`
+- It supports common inline Markdown variants such as optional titles
+- HTML `<img>` support currently assumes quoted `src` attributes such as `<img src="cover.jpg">` or `<img src='cover.jpg'>`
+
+### Unsupported or Ignored
+
+- Absolute paths are unsupported
+- Does not emulate Hexo's `foo.md` plus `foo/` post-asset-folder mapping
+- Unquoted HTML `src` forms such as `<img src=cover.jpg>` are out of scope
+- Standard reference-style images such as `![alt][logo]` currently produce `warning_unsupported_syntax` and are not copied
+- Obsidian wikilink images such as `![[image.png]]` currently produce `warning_unsupported_syntax` and are not copied
+- Relative image URLs may still be unsuitable for some theme archive / index / excerpt pages because this plugin does not rewrite rendered HTML
+
+## For Maintainers and AI
+
+### Design Contract
+
+- `docs/SPEC.md` is the source of truth for behavior and compatibility boundaries
+- `docs/REFERENCE.md` records research, upstream behavior, and external issue analysis
+- Keep concrete design rules in `docs/SPEC.md`, not in this README
 
 ### Environment
 
@@ -134,13 +148,23 @@ public/custom/demo/images/basic-demo.webp
 - Hexo `>=6`
 - npm
 
-### Local development
+### Change Workflow
 
-- Update code and README together
+- Update `docs/SPEC.md` first
+- Then update the code
+- Then update tests
+- Finally sync the README
+- Run `npm test`
 - Run `npm run lint`
-- Test the plugin in a real Hexo project with `hexo generate`
 
-### Release flow
+### Test Scope
+
+- Unit tests live in [test/index.test.js](./test/index.test.js)
+- Real Hexo integration tests live in [test/hexo.integration.test.js](./test/hexo.integration.test.js)
+- Fixtures for parser coverage live in [test/test.md](./test/test.md)
+- Current test scope includes `marked`, `markdown-it`, `relative_link`, custom `permalink`, `url/root` changes, special characters, code-block exclusion, and error summaries
+
+### Release Flow
 
 ```bash
 # 1. Enter the repository

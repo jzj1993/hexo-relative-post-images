@@ -2,7 +2,9 @@
 
 [English](./README.md)
 
-一个 Hexo 插件，用来处理文章里通过相对路径引用本地图片的场景。
+这是一个 Hexo 插件，用来处理文章里通过相对路径引用本地图片的场景。
+
+插件不会修改 Markdown 渲染流程，也不会改写渲染后的 HTML。`hexo generate` 完成后，插件会扫描文章源码，把相对路径引用的本地图片复制到文章最终输出目录。
 
 Hexo 默认的 `post_asset_folder` 更适合“文章文件”和“资源目录”严格一一对应的结构。但很多项目里的文章组织会更自由，例如：
 
@@ -15,21 +17,22 @@ source/_posts/basic/cover.jpg
 source/_posts/basic/images/basic-demo.webp
 ```
 
-这种情况下，Markdown 里的图片链接虽然能被渲染出来，但 Hexo 不一定会把图片文件复制到 `public`。这个插件就是在 `hexo generate` 后把这些本地相对路径图片补复制到文章最终输出目录里。
+这种情况下，Markdown 里的图片链接虽然能被渲染出来，但 Hexo 不一定会把图片文件复制到 `public`。插件的作用就是在 `hexo generate` 后把这些本地相对路径图片补复制到文章最终输出目录里。
 
-## 功能
+## 面向使用者
 
-- 支持 Markdown 图片：`![alt](cover.jpg)`、`![alt](./images/demo.webp)`
-- 支持 HTML 图片：`<img src="./images/demo.webp">`
-- 支持站点根路径形式的绝对路径，例如 `![alt](/images/demo.webp)` 和 `<img src="/images/demo.webp">`
-- 会忽略代码块 (fenced code block) 和内联代码里的图片引用
+### 支持范围
+
 - 支持同级、子目录、上级目录的相对路径
+- 支持 Markdown 图片：`![alt](cover.jpg)`、`![alt](./images/demo.webp)`、`![alt](<cover image.png>)`
+- 支持 HTML 图片：`<img src="./images/demo.webp">`、`<img src='./images/demo.webp'>`
 - 跟随 Hexo 最终文章输出路径，设置了 `url` 或 `permalink` 也能正常工作
+- 支持常见特殊字符文件名，例如空格、中文、括号，以及通过 URL 编码写出的 `#`、`?`
+- front matter、代码块 (fenced code block) 和内联代码里的图片引用会被忽略
 - 通过 `size + mtime` 做轻量增量跳过
-- 日志使用 `Copied:`，和 Hexo 原生 `Generated:` 区分开
 - 基于 Node.js 的 `fs` 和 `path` API，设计上兼容 macOS、Linux 和 Windows
 
-## 安装
+### 安装
 
 ```bash
 npm install hexo-relative-post-images --save
@@ -41,7 +44,7 @@ npm install hexo-relative-post-images --save
 yarn add hexo-relative-post-images
 ```
 
-## 使用
+### 快速使用
 
 运行：
 
@@ -69,25 +72,13 @@ relative_post_images:
 relative_post_images: false
 ```
 
-## 日志示例
+### 渲染器兼容性
 
-```text
-INFO  [relative-post-images] Start copying relative post images
-INFO  [relative-post-images] Copied: markdown-test/img/markdown-test-image.jpg
-INFO  [relative-post-images] Finished: 1 copied, 3 skipped, 0 missing, 0 failed, 0 outside_source, 0 outside_public in 2 ms
-```
+- `markdown-it`：`relative_link: true/false` 都可以
+- `marked`：请使用 `relative_link: true`，或者设置 `marked.prependRoot: false`
+- `marked.postAsset: true` 不支持
 
-## 限制
-
-- 它是 `post_asset_folder` 的补充，不是替代
-- 当前只处理图片
-- 增量判断基于 `size + mtime`
-- 图片文件必须放在 Hexo 的 `source` 目录里面
-- 不支持操作系统文件绝对路径，例如 `C:\demo.png` 或 `\\server\share\demo.png`
-- 不要引用 `source` 外面的文件，也不要让路径解析后落到文章最终 `public` 目录外面
-- 如果源图片不存在，或者解析后的路径超出 `source` / `public` 范围，插件会输出 warning 并跳过
-
-## 完整例子
+### 例子
 
 源文件：
 
@@ -126,19 +117,52 @@ public/custom/demo/cover.jpg
 public/custom/demo/images/basic-demo.webp
 ```
 
-## 开发
+### 适用前提
 
-### 环境配置
+- 当前只处理图片
+- 图片文件必须放在 Hexo 的 `source` 目录里面
+- 支持的结构是“真实文件系统相对路径”，例如 `source/_posts/foo/index.md` 配合 `source/_posts/foo/cover.jpg`
+- 支持一些常见 inline Markdown 变体，例如可选 title
+- HTML `<img>` 当前默认只支持带引号的 `src`，例如 `<img src="cover.jpg">` 或 `<img src='cover.jpg'>`
+
+### 不支持或会忽略
+
+- 不支持绝对路径
+- 不会模拟 Hexo 官方 `foo.md` 对应 `foo/` 资源目录的映射语义
+- `<img src=cover.jpg>` 这种无引号 HTML `src` 写法不在支持范围
+- 标准引用式图片语法，例如 `![alt][logo]`，当前会产出 `warning_unsupported_syntax`，不会复制
+- Obsidian wikilink 图片，例如 `![[image.png]]`，当前也会产出 `warning_unsupported_syntax`，不会复制
+- 对某些主题的首页、归档页、摘要页来说，相对路径图片仍然可能不适用，因为这个插件不会改写渲染后的 HTML
+
+## 面向维护者与 AI
+
+### 设计约束
+
+- `docs/SPEC.md` 是行为和兼容性边界的唯一设计依据
+- `docs/REFERENCE.md` 记录调研、上游行为和外部 issue 分析
+- 具体设计规则写在 `docs/SPEC.md`，README 不重复展开
+
+### 环境要求
 
 - Node.js `>=18`
 - Hexo `>=6`
 - npm
 
-### 本地开发
+### 变更流程
 
-- 改代码时同步更新 README
+- 先修改 `docs/SPEC.md`
+- 再修改代码
+- 再修改测试
+- 最后同步更新 README
+- 运行 `npm test`
 - 运行 `npm run lint`
-- 用实际 Hexo 项目执行 `hexo generate`
+
+### 测试范围
+
+- 单元测试在 [test/index.test.js](./test/index.test.js)
+- 真实 Hexo 集成测试在 [test/hexo.integration.test.js](./test/hexo.integration.test.js)
+- 解析相关 fixture 在 [test/test.md](./test/test.md)
+- 当前测试覆盖 `marked`、`markdown-it`、`relative_link`、自定义 `permalink`、`url/root` 变化、特殊字符、代码块忽略、错误汇总
 
 ### 发布流程
 

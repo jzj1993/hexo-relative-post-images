@@ -8,7 +8,6 @@ const DEFAULT_CONFIG = {
   enable: true,
   log_prefix: '[relative-post-images]'
 };
-const MARKDOWN_IMAGE_RE = /!\[[^\]]*]\(([^)]+)\)/g;
 const HTML_IMAGE_RE = /<img\b[^>]*\bsrc=(["'])(.*?)\1/gi;
 
 function maskNonNewlines(text) {
@@ -50,70 +49,356 @@ function stripInlineCode(content) {
   return content.replace(/(`+)([\s\S]*?)\1/g, (match) => maskNonNewlines(match));
 }
 
-function normalizeRef(rawRef) {
-  if (!rawRef) return null;
-
-  let ref = rawRef.trim();
-
-  if (ref.startsWith('<') && ref.endsWith('>')) {
-    ref = ref.slice(1, -1).trim();
-  }
-
-  const titleMatch = ref.match(/^(\S+)(?:\s+["'].+["'])$/);
-  if (titleMatch) {
-    ref = titleMatch[1];
-  }
-
-  ref = ref.split('#')[0].split('?')[0].trim();
-
-  if (!ref) return null;
-  if (/^(?:[a-z]+:)?\/\//i.test(ref)) return null;
-  if (/^(?:data|mailto|tel):/i.test(ref)) return null;
-  if (isWindowsAbsolutePath(ref)) return null;
-  if (ref.startsWith('#')) return null;
-
-  try {
-    return decodeURI(ref);
-  } catch {
-    return ref;
-  }
-}
-
 function isWindowsAbsolutePath(ref) {
   return /^[a-zA-Z]:[\\/]/.test(ref) || /^\\\\/.test(ref);
 }
 
-function resolveImagePaths(imageRef, sourcePath, sourceDir, outputDir, publicDir) {
-  if (imageRef.startsWith('/')) {
-    const sourceRelativeRef = `.${imageRef}`;
-
-    return {
-      resolvedSource: path.resolve(sourceDir, sourceRelativeRef),
-      resolvedTarget: path.resolve(publicDir, sourceRelativeRef)
-    };
-  }
-
+function resolveImagePaths(imageRef, sourcePath, outputDir) {
   return {
     resolvedSource: path.resolve(path.dirname(sourcePath), imageRef),
     resolvedTarget: path.resolve(outputDir, imageRef)
   };
 }
 
-function extractImageRefs(markdown) {
-  const refs = new Set();
+function isEscaped(text, index) {
+  let backslashCount = 0;
+
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === '\\'; cursor -= 1) {
+    backslashCount += 1;
+  }
+
+  return backslashCount % 2 === 1;
+}
+
+function findClosingBracket(text, startIndex, openChar, closeChar) {
+  let depth = 1;
+
+  for (let cursor = startIndex + 1; cursor < text.length; cursor += 1) {
+    const current = text[cursor];
+
+    if (isEscaped(text, cursor)) continue;
+    if (current === openChar) depth += 1;
+    if (current === closeChar) depth -= 1;
+    if (depth === 0) return cursor;
+  }
+
+  return -1;
+}
+
+function consumeMarkdownLinkTitle(text, startIndex) {
+  const openingChar = text[startIndex];
+  const closingChar = openingChar === '(' ? ')' : openingChar;
+
+  if (!['"', '\'', '('].includes(openingChar)) {
+    return null;
+  }
+
+  let cursor = startIndex + 1;
+
+  while (cursor < text.length) {
+    if (text[cursor] === closingChar && !isEscaped(text, cursor)) {
+      return cursor + 1;
+    }
+
+    cursor += 1;
+  }
+
+  return null;
+}
+
+function skipMarkdownLinkWhitespace(text, startIndex) {
+  let cursor = startIndex;
+  let sawLineEnding = false;
+
+  while (cursor < text.length) {
+    const current = text[cursor];
+
+    if (current === ' ' || current === '\t') {
+      cursor += 1;
+      continue;
+    }
+
+    if (current === '\r' || current === '\n') {
+      if (sawLineEnding) {
+        break;
+      }
+
+      sawLineEnding = true;
+      cursor += current === '\r' && text[cursor + 1] === '\n' ? 2 : 1;
+      continue;
+    }
+
+    break;
+  }
+
+  return cursor;
+}
+
+function parseMarkdownImageRefAt(text, startIndex) {
+  if (text[startIndex] !== '!' || text[startIndex + 1] !== '[') {
+    return null;
+  }
+
+  const altEnd = findClosingBracket(text, startIndex + 1, '[', ']');
+  if (altEnd === -1) return null;
+
+  let cursor = skipMarkdownLinkWhitespace(text, altEnd + 1);
+
+  if (text[cursor] !== '(') return null;
+  cursor += 1;
+
+  while (cursor < text.length && /\s/.test(text[cursor])) {
+    cursor += 1;
+  }
+
+  let rawRef = '';
+
+  if (text[cursor] === '<') {
+    cursor += 1;
+
+    while (cursor < text.length) {
+      if (text[cursor] === '>' && !isEscaped(text, cursor)) {
+        cursor += 1;
+        break;
+      }
+
+      rawRef += text[cursor];
+      cursor += 1;
+    }
+
+    if (cursor > text.length || text[cursor - 1] !== '>') {
+      return null;
+    }
+  } else {
+    let nestedParenDepth = 0;
+
+    while (cursor < text.length) {
+      const current = text[cursor];
+
+      if (current === '(') {
+        nestedParenDepth += 1;
+        rawRef += current;
+        cursor += 1;
+        continue;
+      }
+
+      if (current === ')') {
+        if (nestedParenDepth === 0) break;
+        nestedParenDepth -= 1;
+        rawRef += current;
+        cursor += 1;
+        continue;
+      }
+
+      if (/\s/.test(current) && nestedParenDepth === 0) {
+        break;
+      }
+
+      rawRef += current;
+      cursor += 1;
+    }
+  }
+
+  if (!rawRef) return null;
+
+  while (cursor < text.length && /\s/.test(text[cursor])) {
+    cursor += 1;
+  }
+
+  if (text[cursor] !== ')') {
+    const nextCursor = consumeMarkdownLinkTitle(text, cursor);
+    if (nextCursor === null) return null;
+    cursor = nextCursor;
+
+    while (cursor < text.length && /\s/.test(text[cursor])) {
+      cursor += 1;
+    }
+
+    if (text[cursor] !== ')') return null;
+  }
+
+  return {
+    rawRef,
+    endIndex: cursor + 1
+  };
+}
+
+function parseMarkdownReferenceImageAt(text, startIndex) {
+  if (text[startIndex] !== '!' || text[startIndex + 1] !== '[') {
+    return null;
+  }
+
+  if (text[startIndex + 2] === '[') {
+    return null;
+  }
+
+  const altEnd = findClosingBracket(text, startIndex + 1, '[', ']');
+  if (altEnd === -1) return null;
+
+  const cursor = skipMarkdownLinkWhitespace(text, altEnd + 1);
+
+  if (text[cursor] === '(') {
+    return null;
+  }
+
+  if (text[cursor] === '[') {
+    const labelEnd = findClosingBracket(text, cursor, '[', ']');
+    if (labelEnd === -1) return null;
+
+    return {
+      rawSyntax: text.slice(startIndex, labelEnd + 1),
+      endIndex: labelEnd + 1
+    };
+  }
+
+  return {
+    rawSyntax: text.slice(startIndex, altEnd + 1),
+    endIndex: altEnd + 1
+  };
+}
+
+function parseObsidianImageAt(text, startIndex) {
+  if (text[startIndex] !== '!' || text[startIndex + 1] !== '[' || text[startIndex + 2] !== '[') {
+    return null;
+  }
+
+  const closingIndex = text.indexOf(']]', startIndex + 3);
+  if (closingIndex === -1) return null;
+
+  return {
+    rawSyntax: text.slice(startIndex, closingIndex + 2),
+    endIndex: closingIndex + 2
+  };
+}
+
+function extractMarkdownImageRawRefs(content) {
+  const refs = [];
+
+  for (let cursor = 0; cursor < content.length; cursor += 1) {
+    const parsed = parseMarkdownImageRefAt(content, cursor);
+    if (!parsed) continue;
+
+    refs.push(parsed.rawRef);
+    cursor = parsed.endIndex - 1;
+  }
+
+  return refs;
+}
+
+function extractMarkdownUnsupportedImageSyntaxes(content) {
+  const refs = [];
+
+  for (let cursor = 0; cursor < content.length; cursor += 1) {
+    const parsedInline = parseMarkdownImageRefAt(content, cursor);
+    if (parsedInline) {
+      cursor = parsedInline.endIndex - 1;
+      continue;
+    }
+
+    const parsedReference = parseMarkdownReferenceImageAt(content, cursor);
+    if (parsedReference) {
+      refs.push(parsedReference.rawSyntax);
+      cursor = parsedReference.endIndex - 1;
+      continue;
+    }
+
+    const parsedObsidian = parseObsidianImageAt(content, cursor);
+    if (!parsedObsidian) continue;
+
+    refs.push(parsedObsidian.rawSyntax);
+    cursor = parsedObsidian.endIndex - 1;
+  }
+
+  return refs;
+}
+
+function sanitizeRef(rawRef) {
+  if (!rawRef) return null;
+
+  let ref = rawRef.trim();
+
+  if (!ref) return null;
+  if (/^(?:[a-z]+:)?\/\//i.test(ref)) return null;
+  if (/^(?:data|mailto|tel):/i.test(ref)) return null;
+  if (ref.startsWith('#')) return null;
+
+  ref = ref.split('#')[0].split('?')[0].trim();
+  if (!ref) return null;
+
+  return decodePathRef(ref);
+}
+
+function decodePathRef(ref) {
+  return ref
+    .split('/')
+    .map((segment) => {
+      try {
+        const decoded = decodeURIComponent(segment);
+        return decoded.includes('/') || decoded.includes('\\') ? segment : decoded;
+      } catch {
+        return segment;
+      }
+    })
+    .join('/');
+}
+
+function normalizeRef(rawRef) {
+  const ref = sanitizeRef(rawRef);
+
+  if (!ref) return null;
+  if (ref.startsWith('/')) return null;
+  if (isWindowsAbsolutePath(ref)) return null;
+
+  return ref;
+}
+
+function extractRefsByKind(markdown) {
+  const relativeRefs = [];
+  const absoluteRefs = [];
+  const unsupportedRefs = [];
   const content = stripCodeContexts(stripFrontMatter(markdown));
 
-  for (const match of content.matchAll(MARKDOWN_IMAGE_RE)) {
-    const ref = normalizeRef(match[1]);
-    if (ref) refs.add(ref);
+  for (const rawRef of extractMarkdownImageRawRefs(content)) {
+    collectRef(rawRef, relativeRefs, absoluteRefs);
+  }
+
+  for (const rawSyntax of extractMarkdownUnsupportedImageSyntaxes(content)) {
+    unsupportedRefs.push({ rawRef: rawSyntax });
   }
 
   for (const match of content.matchAll(HTML_IMAGE_RE)) {
-    const ref = normalizeRef(match[2]);
-    if (ref) refs.add(ref);
+    collectRef(match[2], relativeRefs, absoluteRefs);
   }
 
-  return [...refs];
+  return {
+    relativeRefs,
+    absoluteRefs,
+    unsupportedRefs
+  };
+}
+
+function collectRef(rawRef, relativeRefs, absoluteRefs) {
+  const ref = sanitizeRef(rawRef);
+  if (!ref) return;
+
+  if (ref.startsWith('/') || isWindowsAbsolutePath(ref)) {
+    absoluteRefs.push({ rawRef, ref });
+    return;
+  }
+
+  relativeRefs.push({ rawRef, ref });
+}
+
+function extractImageRefs(markdown) {
+  return [...new Set(extractRefsByKind(markdown).relativeRefs.map(({ ref }) => ref))];
+}
+
+function extractUnsupportedAbsoluteImageRefs(markdown) {
+  return [...new Set(extractRefsByKind(markdown).absoluteRefs.map(({ ref }) => ref))];
+}
+
+function extractUnsupportedMarkdownImageSyntaxes(markdown) {
+  return extractRefsByKind(markdown).unsupportedRefs.map(({ rawRef }) => rawRef);
 }
 
 function isInside(baseDir, targetPath) {
@@ -146,6 +431,27 @@ function getPluginConfig(ctx) {
   };
 }
 
+function assertCompatibleHexoConfig(ctx, logPrefix) {
+  if (ctx.config.marked && ctx.config.marked.postAsset) {
+    throw new Error(
+      `${PLUGIN_NAME} only supports relative image paths that stay relative after Markdown rendering. ` +
+      `${logPrefix} Incompatible Hexo config: marked.postAsset=true rewrites Markdown images into absolute post asset paths.`
+    );
+  }
+
+  if (ctx.config.marked && ctx.config.marked.prependRoot !== false && !ctx.config.relative_link) {
+    throw new Error(
+      `${PLUGIN_NAME} only supports relative image paths that stay relative after Markdown rendering. ` +
+      `${logPrefix} Incompatible Hexo config: marked.prependRoot=true with relative_link=false rewrites relative Markdown images into root-absolute paths. ` +
+      `Set relative_link=true or marked.prependRoot=false.`
+    );
+  }
+}
+
+function logImageWarning(log, logPrefix, warningType, imageRef, postSource) {
+  log.warn('%s Warning [%s]: %s (from %s)', logPrefix, warningType, imageRef, postSource);
+}
+
 function register(hexoInstance) {
   hexoInstance.extend.filter.register('after_generate', async function() {
     const pluginConfig = getPluginConfig(this);
@@ -156,6 +462,8 @@ function register(hexoInstance) {
       return;
     }
 
+    assertCompatibleHexoConfig(this, logPrefix);
+
     const posts = this.locals.get('posts').toArray();
     const sourceDir = this.source_dir;
     const publicDir = this.public_dir;
@@ -163,9 +471,11 @@ function register(hexoInstance) {
     let copiedCount = 0;
     let skippedCount = 0;
     let failedCount = 0;
+    let absolutePathCount = 0;
     let outsideSourceCount = 0;
     let outsidePublicCount = 0;
     let missingCount = 0;
+    let unsupportedSyntaxCount = 0;
 
     this.log.info('%s Start copying relative post images', logPrefix);
 
@@ -180,30 +490,34 @@ function register(hexoInstance) {
         markdown = await fs.readFile(sourcePath, 'utf8');
       } catch {
         failedCount += 1;
-        this.log.warn('%s Failed to read post source: %s', logPrefix, post.source);
+        this.log.warn('%s Warning [warning_post_read_failed]: Failed to read post source: %s', logPrefix, post.source);
         continue;
       }
 
-      const imageRefs = extractImageRefs(markdown);
+      const { relativeRefs, absoluteRefs, unsupportedRefs } = extractRefsByKind(markdown);
 
-      for (const imageRef of imageRefs) {
-        const { resolvedSource, resolvedTarget } = resolveImagePaths(
-          imageRef,
-          sourcePath,
-          sourceDir,
-          outputDir,
-          publicDir
-        );
+      for (const imageRef of absoluteRefs) {
+        absolutePathCount += 1;
+        logImageWarning(this.log, logPrefix, 'warning_absolute_path', imageRef.rawRef, post.source);
+      }
+
+      for (const imageRef of unsupportedRefs) {
+        unsupportedSyntaxCount += 1;
+        logImageWarning(this.log, logPrefix, 'warning_unsupported_syntax', imageRef.rawRef, post.source);
+      }
+
+      for (const imageRef of relativeRefs) {
+        const { resolvedSource, resolvedTarget } = resolveImagePaths(imageRef.ref, sourcePath, outputDir);
 
         if (!isInside(sourceDir, resolvedSource)) {
           outsideSourceCount += 1;
-          this.log.warn('%s Skipped image outside source dir: %s (from %s)', logPrefix, imageRef, post.source);
+          logImageWarning(this.log, logPrefix, 'warning_outside_source', imageRef.rawRef, post.source);
           continue;
         }
 
         if (!isInside(publicDir, resolvedTarget)) {
           outsidePublicCount += 1;
-          this.log.warn('%s Skipped image outside public dir: %s (from %s)', logPrefix, imageRef, post.source);
+          logImageWarning(this.log, logPrefix, 'warning_outside_public', imageRef.rawRef, post.source);
           continue;
         }
 
@@ -212,7 +526,7 @@ function register(hexoInstance) {
           sourceStat = await fs.stat(resolvedSource);
         } catch {
           missingCount += 1;
-          this.log.warn('%s Missing image: %s (from %s)', logPrefix, imageRef, post.source);
+          logImageWarning(this.log, logPrefix, 'warning_source_image_missing', imageRef.rawRef, post.source);
           continue;
         }
 
@@ -234,15 +548,25 @@ function register(hexoInstance) {
       }
     }
 
+    const warningsTotal = absolutePathCount +
+      missingCount +
+      failedCount +
+      outsideSourceCount +
+      outsidePublicCount +
+      unsupportedSyntaxCount;
+
     this.log.info(
-      '%s Finished: %d copied, %d skipped, %d missing, %d failed, %d outside_source, %d outside_public in %d ms',
+      '%s Finished: %d copied, %d skipped, %d warnings_total, %d warning_absolute_path, %d warning_source_image_missing, %d warning_post_read_failed, %d warning_outside_source, %d warning_outside_public, %d warning_unsupported_syntax in %d ms',
       logPrefix,
       copiedCount,
       skippedCount,
+      warningsTotal,
+      absolutePathCount,
       missingCount,
       failedCount,
       outsideSourceCount,
       outsidePublicCount,
+      unsupportedSyntaxCount,
       Date.now() - startTime
     );
   });
@@ -254,11 +578,18 @@ if (typeof hexo !== 'undefined' && hexo && hexo.extend && hexo.extend.filter) {
 
 module.exports = {
   extractImageRefs,
+  extractMarkdownImageRawRefs,
+  extractUnsupportedMarkdownImageSyntaxes,
+  extractUnsupportedAbsoluteImageRefs,
   isWindowsAbsolutePath,
   isInside,
   normalizeRef,
+  parseMarkdownImageRefAt,
+  parseObsidianImageAt,
+  parseMarkdownReferenceImageAt,
   register,
   resolveImagePaths,
+  sanitizeRef,
   stripCodeContexts,
   stripFrontMatter,
   stripInlineCode

@@ -41,5 +41,10 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "hexo": "^8.1.1",
+    "hexo-renderer-markdown-it": "^7.1.1",
+    "hexo-renderer-marked": "^7.0.1"
   }
 }
